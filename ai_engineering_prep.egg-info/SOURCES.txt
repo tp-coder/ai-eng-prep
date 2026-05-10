@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+ai_engineering_prep.egg-info/PKG-INFO
+ai_engineering_prep.egg-info/SOURCES.txt
+ai_engineering_prep.egg-info/dependency_links.txt
+ai_engineering_prep.egg-info/requires.txt
+ai_engineering_prep.egg-info/top_level.txt
+app/__init__.py
+app/config.py
+app/main.py
+tests/test_project_bootstrap.py
