@@ -1,15 +1,49 @@
+import argparse
 from rich.console import Console
+from rich.panel import Panel
 from app.config import get_settings
+from app.llm import LLMClient, LLMConfigurationError
 
 console = Console()
 
 
-def main():
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="AI Engineering Prep CLI")
+    parser.add_argument("prompt", nargs="?",
+                        help="Prompt to send to the configured LLM provider")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
     settings = get_settings()
-    console.print("[bold green]AI Engineering Prep ready.[/bold green]")
-    console.print(f"App: {settings.app_name}")
-    console.print(f"Environment: {settings.app_env}")
-    console.print(f"Log level: {settings.log_level}")
+
+    if not args.prompt:
+        console.print("[bold green]AI Engineering Prep ready.[/bold green]")
+        console.print(f"App: {settings.app_name}")
+        console.print(f"Environment: {settings.app_env}")
+        console.print(f"Log level: {settings.log_level}")
+        console.print(f"LLM Model: {settings.openai_model}")
+
+        return
+
+    try:
+        llm = LLMClient(settings)
+        response = llm.complete(args.prompt)
+    except LLMConfigurationError as error:
+        console.print(f"[bold red]Configuration error:[/bold red] {error}")
+        raise SystemExit(1)
+    except Exception as error:
+        console.print(f"[bold red]LLM call error:[/bold red] {error}")
+        raise SystemExit(1)
+
+    console.print(
+        Panel.fit(
+            response.output_text,
+            title=f"{response.model} - {response.latency_ms}ms",
+            border_style="green"
+        )
+    )
 
 
 if __name__ == "__main__":
