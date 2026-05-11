@@ -1,9 +1,13 @@
+import logging
 import time
 from dataclasses import dataclass
 from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from app.config import Settings, get_settings
 from app.schemas import AssistantResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 class LLMConfigurationError(RuntimeError):
@@ -57,22 +61,47 @@ class LLMClient:
     def complete(self, prompt: str) -> LLMResponse:
         started_at = time.perf_counter()
 
-        response = self.client.responses.parse(
-            model=self.settings.openai_model,
-            input=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            text_format=AssistantResponse,
+        logger.info(
+            "llm_request_started model=%s prompt_length=%s",
+            self.settings.openai_model,
+            len(prompt),
         )
 
+        try:
+            response = self.client.responses.parse(
+                model=self.settings.openai_model,
+                input=[
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                text_format=AssistantResponse,
+            )
+        except Exception:
+            latency_ms = int((time.perf_counter() - started_at) * 1000)
+            logger.exception(
+                "llm_request_failed model=%s latency_ms=%s",
+                self.settings.openai_model,
+                latency_ms,
+            )
+            raise
+
         latency_ms = int((time.perf_counter() - started_at) * 1000)
+
+        if response.output_parsed is None:
+            logger.error(
+                "llm_response_parse_failed model=%s latency_ms=%s",
+                self.settings.openai_model,
+                latency_ms,
+            )
+            raise LLMResponseParsingError(
+                "Model response could not be parsed into AssistantResponse."
+            )
 
         return LLMResponse(
             parsed=response.output_parsed,

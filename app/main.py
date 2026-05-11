@@ -4,6 +4,8 @@ from rich.table import Table
 from rich.panel import Panel
 from app.config import get_settings
 from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError
+from app.logging_config import configure_logging
+
 
 console = Console()
 
@@ -15,17 +17,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def render_list(title: str, items: list[str]) -> str:
-    if not items:
-        return f"[bold]{title}:[/bold] none"
-
-    rendered_items = "\n".join(f"- {item}" for item in items)
-    return f"[bold]{title}:[/bold]\n{rendered_items}"
+def render_items(items: list[str]) -> str:
+    return "\n".join(f"- {item}" for item in items) if items else "none"
 
 
 def main() -> None:
     args = parse_args()
     settings = get_settings()
+    configure_logging(settings)
 
     if not args.prompt:
         console.print("[bold green]AI Engineering Prep ready.[/bold green]")
@@ -55,11 +54,11 @@ def main() -> None:
     table.add_row("[bold]Answer[/bold]", parsed.answer)
     table.add_row("[bold]Confidence[/bold]", parsed.confidence)
     table.add_row("[bold]Missing context[/bold]",
-                  "\n".join(parsed.missing_context) or "none")
+                  render_items(parsed.missing_context))
     table.add_row("[bold]Next actions[/bold]",
-                  "\n".join(parsed.next_actions) or "none")
+                  render_items(parsed.next_actions))
     table.add_row("[bold]Source references[/bold]",
-                  "\n".join(parsed.source_references) or "none")
+                  render_items(parsed.source_references))
 
     console.print(
         Panel.fit(

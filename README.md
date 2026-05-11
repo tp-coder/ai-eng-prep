@@ -45,4 +45,7 @@ pytest
 
 ## Current status
 
-Project skeleton. No LLM calls yet
+- [x] LLM API calls and structured output
+- [] Basic RAG pipeline
+- [] Tools calling and mini_agent behavior
+- [] Evals, observability, Docker, and polish

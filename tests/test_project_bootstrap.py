@@ -1,6 +1,7 @@
 from app.config import get_settings
 from app.llm import LLMConfigurationError, LLMClient
 from app.schemas import AssistantResponse
+from app.logging_config import configure_logging
 
 
 def test_settings_load() -> None:
@@ -35,3 +36,8 @@ def test_assistant_response_schema_accepts_valid_response() -> None:
     assert response.answer == "The project skeleton is alive."
     assert response.confidence == "high"
     assert response.next_actions == ["Add structured output support."]
+
+
+def configure_logging_does_not_crash() -> None:
+    settings = get_settings(log_level="INFO")
+    configure_logging(settings)
