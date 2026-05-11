@@ -46,6 +46,6 @@ pytest
 ## Current status
 
 - [x] LLM API calls and structured output
-- [] Basic RAG pipeline
-- [] Tools calling and mini_agent behavior
-- [] Evals, observability, Docker, and polish
+- [ ] Basic RAG pipeline
+- [ ] Tools calling and mini_agent behavior
+- [ ] Evals, observability, Docker, and polish
