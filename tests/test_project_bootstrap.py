@@ -1,5 +1,6 @@
 from app.config import get_settings
 from app.llm import LLMConfigurationError, LLMClient
+from app.schemas import AssistantResponse
 
 
 def test_settings_load() -> None:
@@ -8,7 +9,7 @@ def test_settings_load() -> None:
     assert settings.app_env == "local"
 
 
-def test_llm_client_require_api() -> None:
+def test_llm_client_require_api_key() -> None:
     class FakeSettings:
         openai_api_key = None
         openai_model = "gpt-5-mini"
@@ -21,3 +22,16 @@ def test_llm_client_require_api() -> None:
         assert "OPENAI_API_KEY is missing" in str(error)
     else:
         raise AssertionError("Expected LLMConfigurationError")
+
+
+def test_assistant_response_schema_accepts_valid_response() -> None:
+    response = AssistantResponse(
+        answer="The project skeleton is alive.",
+        confidence="high",
+        missing_context=[],
+        next_actions=["Add structured output support."],
+        source_references=[],
+    )
+    assert response.answer == "The project skeleton is alive."
+    assert response.confidence == "high"
+    assert response.next_actions == ["Add structured output support."]
