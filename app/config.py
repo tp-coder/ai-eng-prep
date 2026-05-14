@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     openai_timeout_seconds: int = 30
     openai_max_retries: int = 2
 
+    docs_path: str = "data/docs"
+    index_path: str = "data/index/documents.json"
+    chunk_size: int = 900
+    chunk_overlap: int = 150
+    retrieval_top_k: int = 4
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

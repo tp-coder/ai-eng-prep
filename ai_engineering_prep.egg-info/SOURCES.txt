@@ -8,5 +8,7 @@ ai_engineering_prep.egg-info/top_level.txt
 app/__init__.py
 app/config.py
 app/llm.py
+app/logging_config.py
 app/main.py
+app/schemas.py
 tests/test_project_bootstrap.py
