@@ -35,7 +35,7 @@ def main() -> None:
 
     save_index(settings.index_path, indexed_chunks)
     console.print(
-        f"[blod green]Saved index to {settings.index_path}[/bold green]")
+        f"[bold green]Saved index to {settings.index_path}[/bold green]")
 
 
 if __name__ == "__main__":

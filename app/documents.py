@@ -22,7 +22,7 @@ def load_documents(docs_path: str) -> list[SourceDocument]:
     if not base_path.exists():
         return []
 
-    documents = list[SourceDocument] = []
+    documents: list[SourceDocument] = []
     for file_path in sorted(base_path.rglob("*")):
         if file_path.suffix.lower() not in {".md", ".txt"}:
             continue

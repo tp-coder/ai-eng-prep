@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
     openai_timeout_seconds: int = 30
     openai_max_retries: int = 2
 
