@@ -37,6 +37,24 @@ Rules:
 """.strip()
 
 
+def build_prompt(
+    user_prompt: str,
+    retrieved_context: str | None = None,
+) -> str:
+
+    if not retrieved_context:
+        return user_prompt
+
+    return f"""
+    User question: {user_prompt}
+    Retrieved context: {retrieved_context}
+    Instructions:
+    - Answer the user's question using only the retrieved context.
+    - If context is insufficient, say it clearly.
+    - Include the source labels used in source_references.
+    """.strip()
+
+
 class LLMClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -58,13 +76,15 @@ class LLMClient:
         stop=stop_after_attempt(3),
         reraise=True
     )
-    def complete(self, prompt: str) -> LLMResponse:
+    def complete(self, prompt: str, retrieved_context: str | None = None) -> LLMResponse:
         started_at = time.perf_counter()
+        final_prompt = build_prompt(prompt, retrieved_context)
 
         logger.info(
             "llm_request_started model=%s prompt_length=%s",
             self.settings.openai_model,
-            len(prompt),
+            len(final_prompt),
+            retrieved_context is not None,
         )
 
         try:
@@ -77,7 +97,7 @@ class LLMClient:
                     },
                     {
                         "role": "user",
-                        "content": prompt,
+                        "content": final_prompt,
                     }
                 ],
                 text_format=AssistantResponse,
@@ -102,6 +122,15 @@ class LLMClient:
             raise LLMResponseParsingError(
                 "Model response could not be parsed into AssistantResponse."
             )
+
+        logger.info(
+            "llm_request_completed model=%s latency_ms=%s confidence=%s missing_context_count=%s next_actions_count=%s",
+            self.settings.openai_model,
+            latency_ms,
+            response.output_parsed.confidence,
+            len(response.output_parsed.missing_context),
+            len(response.output_parsed.next_actions),
+        )
 
         return LLMResponse(
             parsed=response.output_parsed,
