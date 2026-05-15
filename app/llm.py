@@ -81,7 +81,7 @@ class LLMClient:
         final_prompt = build_prompt(prompt, retrieved_context)
 
         logger.info(
-            "llm_request_started model=%s prompt_length=%s",
+            "llm_request_started model=%s prompt_length=%s has_retrieved_context=%s",
             self.settings.openai_model,
             len(final_prompt),
             retrieved_context is not None,
