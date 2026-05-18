@@ -11,18 +11,11 @@ The project will evolve through 4 stages:
 
 ## Setup
 
-### Create a virtual environment
+### Create a virtual environment and install dependencies
 
 ```bash
 cd <project_root>
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### Install dependencies
-
-```bash
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ### Copy env file
@@ -34,13 +27,13 @@ cp .env.example .env
 ### Run the app
 
 ```bash
-python3 -m app.main
+uv run python -m app.main
 ```
 
 ### Run tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
 ## Current status
