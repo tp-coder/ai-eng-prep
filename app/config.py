@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     chunk_size: int = 900
     chunk_overlap: int = 150
     retrieval_top_k: int = 4
+    retrieval_min_score: float = Field(default=0.25, ge=0.0, le=1.0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
