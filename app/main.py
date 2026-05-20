@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
                         help="Prompt to send to the configured LLM provider")
 
     parser.add_argument(
-        "--allow-llm",
+        "--allow-llm-general",
         action="store_true",
         help="Allow the LLM to generate content that is not in the retrieved context"
     )
@@ -105,7 +105,7 @@ def build_no_context_response(
         next_actions=[
             "Add relevant documents to data/docs and re-run ingestion process.",
             "Lower RETRIEVAL_MIN_SCORE if you want lighter context threshold - but this can produce false positives.",
-            "Use --allow-llm to allow the LLM to generate content that is not in the retrieved context.",
+            "Use --allow-llm-general to allow the LLM to generate content that is not in the retrieved context.",
             "Use --no-rag if you want to bypass retrieval completely."
         ],
         source_references=[],
@@ -196,7 +196,7 @@ def main() -> None:
                         settings.retrieval_min_score,
                     )
 
-                    if not args.allow_llm:
+                    if not args.allow_llm_general:
                         parsed = build_no_context_response(
                             min_score=settings.retrieval_min_score,
                             top_score=top_score,
@@ -212,7 +212,7 @@ def main() -> None:
                 logger.warning(
                     "retrieval_skipped reason=index_not_found_or_empty")
 
-                if not args.allow_llm:
+                if not args.allow_llm_general:
                     parsed = AssistantResponse(
                         answer="I could not answer your question because the local document index is empty.",
                         confidence="high",
@@ -222,7 +222,7 @@ def main() -> None:
                         next_actions=[
                             "Add documents to data/docs.",
                             "Run uv run python -m app.ingest.",
-                            "Use --allow-llm to deliberately allow an LLM non-grounded answer."
+                            "Use --allow-llm-general to deliberately allow an LLM non-grounded answer."
                         ],
                         source_references=[],
                     )
