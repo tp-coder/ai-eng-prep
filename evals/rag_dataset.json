@@ -1,0 +1,37 @@
+[
+    {
+        "id": "project_overview",
+        "question": "What is this project trying to build?",
+        "should_find_relevant_context": true,
+        "expected_sources_contains": ["project-overview.md"],
+        "expected_top_score_min": 0.25
+    },
+    {
+        "id": "structured_outputs",
+        "question": "Why does this project use structured outputs?",
+        "should_find_relevant_context": true,
+        "expected_sources_contains": ["structured-output-notes.md"],
+        "expected_top_score_min": 0.25
+    },
+    {
+        "id": "rag_steps",
+        "question": "What are the basic steps of this RAG pipeline?",
+        "should_find_relevant_context": true,
+        "expected_sources_contains": ["rag-notes.md"],
+        "expected_top_score_min": 0.25
+    },
+    {
+        "id": "unrelated_restaurant_question",
+        "question": "What is the best lasagna in Turin?",
+        "should_find_relevant_context": false,
+        "expected_sources_contains": [],
+        "expected_top_score_max": 0.25
+    },
+    {
+        "id": "unrelated_weather_question",
+        "question": "Will it rain tomorrow in Madrid?",
+        "should_find_relevant_context": false,
+        "expected_sources_contains": [],
+        "expected_top_score_max": 0.25
+    }
+]
