@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     embedding_dim: int = 1536  # text-embedding-3-small dimension
 
     docs_path: str = "data/docs"
-    index_path: str = "data/index/documents.json"
     chunk_size: int = 900
     chunk_overlap: int = 150
     retrieval_top_k: int = 4

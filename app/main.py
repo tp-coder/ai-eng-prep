@@ -95,7 +95,7 @@ def build_no_context_response(
 
     return AssistantResponse(
         answer=(
-            "I could not answer your question from the local document index because no review chunks passed the minimum relevance threshold."
+            "I could not answer your question from the local Qdrant collection because no retrieved chunks passed the minimum relevance threshold."
         ),
         confidence="high",
         missing_context=[
@@ -214,7 +214,7 @@ def main() -> None:
 
                 if not args.allow_llm_general:
                     parsed = AssistantResponse(
-                        answer="I could not answer your question because the local document index is empty.",
+                        answer="I could not answer your question because the local Qdrant collection is empty.",
                         confidence="high",
                         missing_context=[
                             f"No vectors found in Qdrant collection '{settings.qdrant_collection}'",
@@ -225,6 +225,11 @@ def main() -> None:
                             "Use --allow-llm-general to deliberately allow an LLM non-grounded answer."
                         ],
                         source_references=[],
+                    )
+                    render_assistant_response(
+                        parsed=parsed,
+                        model="local-rag-guard",
+                        latency_ms=0,
                     )
                     return
 

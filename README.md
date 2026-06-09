@@ -14,8 +14,8 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Loads local Markdown and text documents from `data/docs`.
 - Splits documents into overlapping chunks.
 - Creates embeddings for document chunks.
-- Saves a local JSON vector index.
-- Retrieves relevant chunks by cosine similarity.
+- Persists embeddings in a local Qdrant vector store.
+- Retrieves relevant chunks from Qdrant by cosine similarity.
 - Filters weak retrieval matches with `RETRIEVAL_MIN_SCORE`.
 - Answers with retrieved context by default.
 - Refuses grounded answers when no retrieved context passes the threshold.
@@ -28,14 +28,15 @@ app/
   config.py          # Environment/settings loading
   documents.py       # Document loading and chunking
   embeddings.py      # OpenAI embedding client
-  index.py           # Vector index, cosine similarity, search
-  ingest.py          # Builds the local document index
+  index.py           # Shared retrieval result dataclasses
+  ingest.py          # Builds the local Qdrant collection
   llm.py             # OpenAI LLM client and prompt construction
   main.py            # CLI entrypoint
   schemas.py         # Structured response schemas
+  vector_store.py    # Qdrant-backed vector store
 
 data/docs/           # Source documents for RAG
-data/index/          # Generated local index
+data/qdrant/         # Generated local Qdrant storage
 
 evals/
   rag_dataset.json   # Retrieval eval cases
@@ -70,7 +71,9 @@ Optional settings:
 OPENAI_MODEL=gpt-5-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 DOCS_PATH=data/docs
-INDEX_PATH=data/index/documents.json
+QDRANT_PATH=data/qdrant
+QDRANT_COLLECTION=documents
+EMBEDDING_DIM=1536
 RETRIEVAL_TOP_K=4
 RETRIEVAL_MIN_SCORE=0.25
 ```
@@ -83,7 +86,7 @@ Before asking document-grounded questions, ingest the local docs:
 uv run python -m app.ingest
 ```
 
-This reads files from `data/docs`, chunks them, creates embeddings, and writes the index to `data/index/documents.json`.
+This reads files from `data/docs`, chunks them, creates embeddings, recreates the configured Qdrant collection, and upserts the chunks into local Qdrant storage at `data/qdrant`.
 
 ## Run The App
 
@@ -135,7 +138,7 @@ uv run ruff check .
 uv run python -m evals.run_rag
 ```
 
-The eval runner embeds each eval question, searches the local index, applies the retrieval threshold, and checks whether each case found or rejected context as expected.
+The eval runner embeds each eval question, searches the local Qdrant collection, applies the retrieval threshold, and checks whether each case found or rejected context as expected.
 
 The eval dataset currently includes positive cases for project overview, structured outputs, and RAG steps, plus negative cases for unrelated restaurant and weather questions.
 

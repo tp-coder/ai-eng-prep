@@ -41,7 +41,7 @@ def test_filter_results_by_score_returns_empty_list_when_no_match() -> None:
 def test_build_no_context_explains_retrieval_failure() -> None:
     response = build_no_context_response(min_score=0.25, top_score=0.07)
 
-    assert "I could not answer your question from the local document index" in response.answer
+    assert "I could not answer your question from the local Qdrant collection" in response.answer
     assert response.confidence == "high"
     assert "Retrieval minimum score is 0.2500" in response.missing_context
     assert "Highest retrieved score was 0.0700." in response.missing_context
