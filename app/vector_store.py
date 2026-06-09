@@ -1,5 +1,4 @@
 import logging
-from typing import Collection
 import uuid
 
 from qdrant_client import QdrantClient
