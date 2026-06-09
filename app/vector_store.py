@@ -59,7 +59,7 @@ class QdrantVectorStore:
             for chunk, embedding in zip(chunks, embeddings, strict=True)
         ]
 
-        self.client.upsert(Collection_name=self.collection, points=points)
+        self.client.upsert(collection_name=self.collection, points=points)
         logger.info("qdrant_upserted collection=%s point_count=%s",
                     self.collection, len(points))
 
