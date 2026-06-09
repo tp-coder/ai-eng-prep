@@ -8,8 +8,9 @@ from rich.table import Table
 
 from app.config import get_settings
 from app.embeddings import EmbeddingClient
-from app.index import SearchResult, load_index, search_index
 from app.logging_config import configure_logging
+from app.index import SearchResult
+from app.vector_store import QdrantVectorStore
 
 
 console = Console()
@@ -159,10 +160,10 @@ def main() -> None:
     configure_logging(settings)
 
     eval_cases = load_eval_cases("evals/rag_dataset.json")
-    indexed_chunks = load_index(settings.index_path)
-    if not indexed_chunks:
+    store = QdrantVectorStore(settings)
+    if store.count() == 0:
         console.print(
-            f"[bold red]No index found at {settings.index_path}[/bold red]\n"
+            f"[bold red]No vectors found in Qdrant collection '{settings.qdrant_collection}'[/bold red]\n"
             "Run: uv run python -m app.ingest"
         )
         raise SystemExit(1)
@@ -172,10 +173,9 @@ def main() -> None:
     query_embeddings = embedding_client.embed_texts(questions)
 
     results: list[RagEvalResult] = []
-    for case, query_embeddings in zip(eval_cases, query_embeddings, strict=True):
-        search_results = search_index(
-            indexed_chunks=indexed_chunks,
-            query_embedding=query_embeddings,
+    for case, query_embedding in zip(eval_cases, query_embeddings, strict=True):
+        search_results = store.search(
+            query_embedding=query_embedding,
             top_k=settings.retrieval_top_k,
         )
 

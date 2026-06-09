@@ -1,10 +1,12 @@
 import logging
+
 from rich.console import Console
+
 from app.config import get_settings
 from app.documents import chunk_documents, load_documents
 from app.embeddings import EmbeddingClient
-from app.index import build_index, save_index
 from app.logging_config import configure_logging
+from app.vector_store import QdrantVectorStore
 
 
 console = Console()
@@ -29,13 +31,16 @@ def main() -> None:
     console.print(f"Loaded {len(documents)} documents")
     console.print(f"Created {len(chunks)} document chunks")
 
+    # Refactored to use Qdrant Vector Store
     embedding_client = EmbeddingClient(settings)
     embeddings = embedding_client.embed_texts([chunk.text for chunk in chunks])
-    indexed_chunks = build_index(chunks, embeddings)
-
-    save_index(settings.index_path, indexed_chunks)
+    store = QdrantVectorStore(settings)
+    store.reset_collection()
+    store.upsert(chunks, embeddings)
     console.print(
-        f"[bold green]Saved index to {settings.index_path}[/bold green]")
+        f"[bold green]Indexed {len(chunks)} chunks into Qdrant collection "
+        f"'{settings.qdrant_collection}'[/bold green]"
+    )
 
 
 if __name__ == "__main__":
