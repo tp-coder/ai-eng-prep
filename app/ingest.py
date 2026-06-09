@@ -47,7 +47,7 @@ def main() -> None:
     store.reset_collection()
     store.upsert(chunks, embeddings)
     console.print(
-        f"[bold green]Indexed {len(chunks)} chunks into Qdrant colletion "
+        f"[bold green]Indexed {len(chunks)} chunks into Qdrant collection "
         f"'{settings.qdrant_collection}'[/bold green]"
     )
 

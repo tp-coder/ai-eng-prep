@@ -9,8 +9,10 @@ from app.embeddings import EmbeddingClient
 from app.config import get_settings
 from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError
 from app.logging_config import configure_logging
-from app.index import SearchResult, load_index, search_index
+# from app.index import SearchResult, load_index, search_index
 from app.schemas import AssistantResponse
+from app.index import SearchResult
+from app.vector_store import QdrantVectorStore
 
 
 console = Console()
@@ -157,15 +159,15 @@ def main() -> None:
 
     try:
         if not args.no_rag:
-            indexed_chunks = load_index(settings.index_path)
+            # indexed_chunks = load_index(settings.index_path)
+            store = QdrantVectorStore(settings)
 
-            if indexed_chunks:
+            if store.count() > 0:
                 embedding_client = EmbeddingClient(settings)
                 query_embedding = embedding_client.embed_texts([args.prompt])[
                     0]
 
-                raw_results = search_index(
-                    indexed_chunks=indexed_chunks,
+                raw_results = store.search(
                     query_embedding=query_embedding,
                     top_k=settings.retrieval_top_k,
                 )

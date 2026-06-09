@@ -87,3 +87,9 @@ class QdrantVectorStore:
                 )
             )
         return results
+
+    def count(self) -> int:
+        if not self.client.collection_exists(self.collection):
+            return 0
+
+        return self.client.count(collection_name=self.collection).count
