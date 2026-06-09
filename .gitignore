@@ -14,6 +14,7 @@ venv/
 # Local data
 data/index
 data/generated
+data/qdrant
 logs/
 
 # OS / IDE
