@@ -34,6 +34,8 @@ class RagEvalResult:
     top_score: float | None
     filtered_count: int
     top_source: str | None
+    rank: int | None
+    reciprocal_rank: float | None
     failures: list[str]
 
 
@@ -66,6 +68,18 @@ def sources_matches_expectations(
     expected_sources_contains: list[str],
 ) -> bool:
     return any(expected in source_path for expected in expected_sources_contains)
+
+
+def first_relevant_rank(
+    case: RagEvalCase,
+    results: list[SearchResult],
+) -> int | None:
+    # 1-indexed rank of the first retrieved result that matches the expected sources
+    for rank, result in enumerate(results, start=1):
+        if sources_matches_expectations(result.chunk.source_path, case.expected_sources_contains):
+            return rank
+
+    return None
 
 
 def evaluate_case(
@@ -118,6 +132,10 @@ def evaluate_case(
                 f"Expected at least one filtered source to contain {case.expected_sources_contains} but got {filtered_sources}"
             )
 
+    rank = first_relevant_rank(
+        case, results) if case.should_find_relevant_context else None
+    reciprocal_rank = (1.0 / rank) if rank else 0.0
+
     return RagEvalResult(
         id=case.id,
         question=case.question,
@@ -125,6 +143,8 @@ def evaluate_case(
         top_score=top_score,
         filtered_count=len(filtered_results),
         top_source=top_source,
+        rank=rank,
+        reciprocal_rank=reciprocal_rank,
         failures=failures,
     )
 
@@ -136,6 +156,8 @@ def render_results(results: list[RagEvalResult]) -> None:
     table.add_column("Top Score", justify="center")
     table.add_column("Filtered", justify="center")
     table.add_column("Top Source")
+    table.add_column("Rank", justify="center")
+    table.add_column("Reciprocal Rank", justify="center")
     table.add_column("Failures", justify="center")
 
     for result in results:
@@ -149,10 +171,32 @@ def render_results(results: list[RagEvalResult]) -> None:
             top_score,
             str(result.filtered_count),
             result.top_source or "N/A",
+            str(result.rank) if result.rank is not None else "N/A",
+            f"{result.reciprocal_rank:.4f}",
             failures,
         )
 
     console.print(table)
+
+
+def retrieval_metrics(
+    cases: list[RagEvalCase],
+    results: list[RagEvalResult],
+    k: int,
+) -> dict[str, float]:
+    relevant = [result for case, result in zip(
+        cases, results, strict=True) if case.should_find_relevant_context]
+    relevant_count = len(relevant)
+
+    if relevant_count == 0:
+        return {}
+
+    return {
+        "MRR": sum(relevance.reciprocal_rank for relevance in relevant) / relevant_count,
+        "Hit@1": sum(1 for result in relevant if result.rank == 1) / relevant_count,
+        f"Hit@{k}": sum(1 for result in relevant if result.rank is not None and result.rank <= k) / relevant_count,
+        "relevant_count": relevant_count,
+    }
 
 
 def main() -> None:
@@ -188,6 +232,16 @@ def main() -> None:
         results.append(result)
 
     render_results(results)
+
+    metrics = retrieval_metrics(
+        eval_cases, results, k=settings.retrieval_top_k)
+    if metrics:
+        k = settings.retrieval_top_k
+        console.print(
+            f"[bold]Retrieval metrics[/bold] (over {int(metrics['relevant_count'])} relevant cases, top_k={k}) "
+            f"MRR={metrics['MRR']:.4f}, Hit@1={metrics['Hit@1']:.4f}, Hit@{k}={metrics[f'Hit@{k}']:.4f}"
+        )
+
     passed = sum(1 for result in results if result.passed)
     total = len(results)
 
