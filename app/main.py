@@ -12,6 +12,7 @@ from app.logging_config import configure_logging
 from app.schemas import AssistantResponse
 from app.index import SearchResult
 from app.vector_store import QdrantVectorStore
+from app.retrieval import retrieve_context, filter_results_by_score, format_retrieved_context
 
 
 console = Console()
@@ -47,29 +48,6 @@ def parse_args() -> argparse.Namespace:
 
 def render_items(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items) if items else "none"
-
-
-def format_retrieved_context(results: list[SearchResult]) -> str:
-    blocks: list[str] = []
-
-    for result in results:
-        source_label = f"{result.chunk.source_path}::chunk-{result.chunk.chunk_index}"
-        blocks.append(
-            f"""
-            Source: {source_label}
-            Similarity score: {result.score:.4f}
-            Context: {result.chunk.text}
-            """.strip()
-        )
-
-    return "\n\n---\n\n".join(blocks)
-
-
-def filter_results_by_score(
-    results: list[SearchResult],
-    min_score: float,
-) -> list[SearchResult]:
-    return [result for result in results if result.score >= min_score]
 
 
 def render_retrieval_debug(results: list[SearchResult]) -> None:
@@ -201,11 +179,13 @@ def main() -> None:
                             min_score=settings.retrieval_min_score,
                             top_score=top_score,
                         )
+
                         render_assistant_response(
                             parsed=parsed,
                             model='local-rag-guard',
                             latency_ms=0,
                         )
+
                         return
 
             else:
