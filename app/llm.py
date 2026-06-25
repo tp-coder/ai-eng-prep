@@ -1,10 +1,13 @@
 import logging
 import time
+import json
+
 from dataclasses import dataclass
 from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from app.config import Settings, get_settings
 from app.schemas import AssistantResponse
+from app.tools import SEARCH_DOCS_TOOL, execute_tool
 
 
 logger = logging.getLogger(__name__)
@@ -53,6 +56,65 @@ def build_prompt(
     - If context is insufficient, say it clearly.
     - Include the source labels used in source_references.
     """.strip()
+
+
+AGENT_SYSTEM_PROMPT = """
+You are an AI engineering assistant with a document search tool (search_docs).
+- Call search_docs when answering needs facts that might exist in the indexed documents.
+- For general questions you can answer directly, do NOT call the tool.
+- When you use retrieved context, ground the answer in it and put the source labels in source_references.
+- If the tool returns nothing relevant and you lack the facts, say what's missing rather than guessing.
+""".strip()
+
+
+MAX_TOOL_ITERATIONS = 5
+
+
+def complete_with_tools(self, prompt: str) -> LLMResponse:
+    started_at = time.perf_counter()
+    input_items = [
+        {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+    tool_calls_made = 0
+    for _ in range(MAX_TOOL_ITERATIONS):
+        response = self.client.responses.parse(
+            model=self.settings.openai_model,
+            input=input_items,
+            tools=[SEARCH_DOCS_TOOL],
+            text_format=AssistantResponse,
+        )
+
+        function_calls = [
+            item for item in response.output if item.type == "function_call"]
+
+        if not function_calls:  # no more tool calls. model is done → final answer
+            parsed = response.output_parsed
+            if parsed is None:
+                raise LLMResponseParsingError(
+                    "No parsed AssistantResponse and no tool call.")
+
+            latency_ms = int((time.perf_counter() - started_at) * 1000)
+            logger.info("agent_completed tool_calls=%s latency_ms=%s",
+                        tool_calls_made, latency_ms)
+            return LLMResponse(
+                parsed=parsed,
+                model=self.settings.openai_model,
+                latency_ms=latency_ms,
+            )
+
+        input_items += response.output
+        for call in function_calls:
+            result = execute_tool(call.name, json.loads(call.arguments))
+            tool_calls_made += 1
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": call.call_id,
+                "output": result,
+            })
+
+    raise RuntimeError(
+        f"Agent exceeded MAX_TOOL_ITERATIONS={MAX_TOOL_ITERATIONS}")
 
 
 class LLMClient:
