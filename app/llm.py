@@ -2,7 +2,7 @@ import logging
 import time
 import json
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from app.config import Settings, get_settings
@@ -26,6 +26,7 @@ class LLMResponse:
     parsed: AssistantResponse
     model: str
     latency_ms: int
+    tool_names: list[str] = field(default_factory=list)
 
 
 SYSTEM_PROMPT = """
@@ -79,7 +80,7 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
     ]
 
     tool_calls_made = 0
-    tools_called = []
+    called: list[str] = []
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         response = self.client.responses.parse(
@@ -99,12 +100,13 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
                     "No parsed AssistantResponse and no tool call.")
 
             latency_ms = int((time.perf_counter() - started_at) * 1000)
-            logger.info("agent_completed tool_calls=%s latency_ms=%s",
-                        tool_calls_made, latency_ms)
+            logger.info("agent_completed tool_calls=%s tool_used=%s latency_ms=%s",
+                        tool_calls_made, called, latency_ms)
             return LLMResponse(
                 parsed=parsed,
                 model=self.settings.openai_model,
                 latency_ms=latency_ms,
+                tool_names=called,
             )
 
         input_items += response.output
@@ -119,9 +121,9 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
                 call.call_id
             )
 
+            called.append(call.name)
             result = execute_tool(call.name, args)
             tool_calls_made += 1
-            tools_called.append(call.name)
 
             input_items.append({
                 "type": "function_call_output",

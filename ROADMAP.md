@@ -21,9 +21,15 @@ Retrieval flipped from always-on → **model-decided**.
 
 Add a distinct tool (e.g. `calculator`) so the agent must pick the **right** tool, not just tool-or-nothing. The loop already supports N tools (just add def + executor branch + register) — extensibility payoff.
 
-## Phase 3 — Trajectory / agent eval _(the moat)_
+## Phase 3 — Trajectory / agent eval ✅ (2026-06-25) _(the moat)_
 
-Extend the eval harness from retrieval-only to **agent behavior**: right tool? grounded when it should be? no needless calls? Regression-gated. → "an agent _with an eval suite that proves it picks the right tool_."
+Eval harness extended from retrieval-only to **agent behavior**.
+
+- `complete_with_tools` now returns `tool_names` (the trajectory)
+- `evals/agent_dataset.json` — cases: math / doc / general / compound, each with `expected_tools`
+- `evals/run_agent.py` — **set-equality** on tools called + **precision/recall/accuracy** metrics, pass/fail table, regression gate
+- ✅ 4/4 pass · Accuracy 1.0 · Tool precision 1.0 · Tool recall 1.0
+- → "an agent _with an eval suite that proves it picks the right tool_ — measured with precision & recall."
 
 ## Phase 4 — MCP server _(the headline)_
 
