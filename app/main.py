@@ -7,7 +7,7 @@ from rich.panel import Panel
 
 from app.embeddings import EmbeddingClient
 from app.config import get_settings
-from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError
+from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError, complete_with_tools
 from app.logging_config import configure_logging
 from app.schemas import AssistantResponse
 from app.index import SearchResult
@@ -41,6 +41,12 @@ def parse_args() -> argparse.Namespace:
         "--show-context",
         action="store_true",
         help="Print retrieved chunks before calling the LLM"
+    )
+
+    parser.add_argument(
+        "--agent",
+        action="store_true",
+        help="Use agentic RAG mode with tool-calling"
     )
 
     return parser.parse_args()
@@ -135,7 +141,7 @@ def main() -> None:
     retrieved_context: str | None = None
 
     try:
-        if not args.no_rag:
+        if not args.no_rag and not args.agent:
             store = QdrantVectorStore(settings)
 
             if store.count() > 0:
@@ -214,8 +220,11 @@ def main() -> None:
                     return
 
         llm = LLMClient(settings)
-        response = llm.complete(
-            args.prompt, retrieved_context=retrieved_context)
+        if args.agent:
+            response = complete_with_tools(llm, args.prompt)
+        else:
+            response = llm.complete(
+                args.prompt, retrieved_context=retrieved_context)
 
     except LLMConfigurationError as error:
         console.print(f"[bold red]Configuration error:[/bold red] {error}")

@@ -7,7 +7,7 @@ from openai import OpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from app.config import Settings, get_settings
 from app.schemas import AssistantResponse
-from app.tools import SEARCH_DOCS_TOOL, execute_tool
+from app.tools import CALCULATOR_TOOL, SEARCH_DOCS_TOOL, execute_tool
 
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,9 @@ def build_prompt(
 
 
 AGENT_SYSTEM_PROMPT = """
-You are an AI engineering assistant with a document search tool (search_docs).
+You are an AI engineering assistant with a document search tool (search_docs) and a calculator tool (calculate).
 - Call search_docs when answering needs facts that might exist in the indexed documents.
+- Call calculate when the user asks for a math calculation (e.g '2 + 2', '15 * 4.5').
 - For general questions you can answer directly, do NOT call the tool.
 - When you use retrieved context, ground the answer in it and put the source labels in source_references.
 - If the tool returns nothing relevant and you lack the facts, say what's missing rather than guessing.
@@ -81,7 +82,7 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
         response = self.client.responses.parse(
             model=self.settings.openai_model,
             input=input_items,
-            tools=[SEARCH_DOCS_TOOL],
+            tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
             text_format=AssistantResponse,
         )
 
