@@ -77,8 +77,11 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
         {"role": "system", "content": AGENT_SYSTEM_PROMPT},
         {"role": "user", "content": prompt},
     ]
+
     tool_calls_made = 0
-    for _ in range(MAX_TOOL_ITERATIONS):
+    tools_called = []
+
+    for iteration in range(MAX_TOOL_ITERATIONS):
         response = self.client.responses.parse(
             model=self.settings.openai_model,
             input=input_items,
@@ -105,9 +108,21 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
             )
 
         input_items += response.output
+
         for call in function_calls:
-            result = execute_tool(call.name, json.loads(call.arguments))
+            args = json.loads(call.arguments)
+            logger.info(
+                "agent_tool_call iteration=%s tool_name=%s args=%s call_id=%s",
+                iteration + 1,
+                call.name,
+                args,
+                call.call_id
+            )
+
+            result = execute_tool(call.name, args)
             tool_calls_made += 1
+            tools_called.append(call.name)
+
             input_items.append({
                 "type": "function_call_output",
                 "call_id": call.call_id,
