@@ -2,5 +2,5 @@
     {"id": "math_only", "prompt": "what is 15 * 3.5 + 2?", "expected_tools": ["calculate"]},
     {"id": "doc_only", "prompt": "what are the basic steps of this RAG pipeline?", "expected_tools": ["search_docs"]},
     {"id": "general_no_tool", "prompt": "what is the capital of France?", "expected_tools": []},
-    {"id": "compound", "prompt": "what is this project trying to build, and what is sqrt(144)?", "expected_tools": ["search_docs", "calculate"]}
+    {"id": "compound", "prompt": "what is sqrt(144) and what is this project trying to build?", "expected_tools": ["search_docs", "calculate"]}
 ]

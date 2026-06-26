@@ -2,7 +2,7 @@
 
 A hands-on AI engineering prep project for building a production-shaped AI assistant in Python.
 
-The project starts with structured LLM responses, then adds a local retrieval-augmented generation pipeline, retrieval evals, and eventually tool-calling and mini-agent behavior.
+The project starts with structured LLM responses, then adds a local retrieval-augmented generation pipeline, retrieval evals, tool-calling, and mini-agent behavior.
 
 The long-term goal is to build an AI Technical Discovery Assistant that can turn project notes, architecture decisions, technical documents, and tickets into implementation-ready outputs such as specs, acceptance criteria, risk lists, and test scenarios.
 
@@ -20,6 +20,9 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Answers with retrieved context by default.
 - Refuses grounded answers when no retrieved context passes the threshold.
 - Runs basic retrieval evals from `evals/rag_dataset.json`.
+- Runs an agent mode that lets the model choose between document search and calculation tools.
+- Traces tool calls made by the agent.
+- Runs basic agent tool-routing evals from `evals/agent_dataset.json`.
 
 ## Project Structure
 
@@ -33,13 +36,16 @@ app/
   llm.py             # OpenAI LLM client and prompt construction
   main.py            # CLI entrypoint
   schemas.py         # Structured response schemas
+  tools.py           # Tool definitions and execution
   vector_store.py    # Qdrant-backed vector store
 
 data/docs/           # Source documents for RAG
 data/qdrant/         # Generated local Qdrant storage
 
 evals/
+  agent_dataset.json # Agent tool-routing eval cases
   rag_dataset.json   # Retrieval eval cases
+  run_agent.py       # Agent eval runner
   run_rag.py         # RAG retrieval eval runner
 
 tests/               # Unit tests
@@ -120,6 +126,19 @@ Allow a general LLM answer when no local context is found:
 uv run python -m app.main "What is the best lasagna in Turin?" --allow-llm-general
 ```
 
+Run the tool-calling agent:
+
+```bash
+uv run python -m app.main "What is sqrt(144) and what is this project trying to build?" --agent
+```
+
+Agent mode gives the model access to two tools:
+
+- `search_docs`: searches the local indexed documents and returns relevant passages.
+- `calculate`: evaluates simple arithmetic expressions.
+
+The agent loops until the model stops requesting tool calls or reaches the maximum tool-iteration limit. Each completed response still returns the same structured `AssistantResponse` shape as the non-agent path.
+
 ## Run Tests
 
 ```bash
@@ -142,6 +161,16 @@ The eval runner embeds each eval question, searches the local Qdrant collection,
 
 The eval dataset currently includes positive cases for project overview, structured outputs, and RAG steps, plus negative cases for unrelated restaurant and weather questions.
 
+## Run Agent Evals
+
+```bash
+uv run python -m evals.run_agent
+```
+
+The agent eval runner sends each prompt through `complete_with_tools`, compares the actual tool calls against `expected_tools`, and reports accuracy, tool precision, and tool recall.
+
+The current dataset covers calculator-only, document-search-only, no-tool, and compound search-plus-calculation cases.
+
 ## Current Status
 
 - [x] Project bootstrap and configuration
@@ -149,7 +178,8 @@ The eval dataset currently includes positive cases for project overview, structu
 - [x] Basic RAG ingestion and retrieval
 - [x] Local retrieval guardrails
 - [x] Basic retrieval evals
-- [ ] Tool calling and mini-agent behavior
+- [x] Tool calling and mini-agent behavior
+- [x] Basic agent tool-routing evals
 - [ ] Observability improvements
 - [ ] Docker support
 - [ ] Project polish
