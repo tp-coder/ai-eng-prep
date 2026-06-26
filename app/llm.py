@@ -8,6 +8,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from app.config import Settings, get_settings
 from app.schemas import AssistantResponse
 from app.tools import CALCULATOR_TOOL, SEARCH_DOCS_TOOL, execute_tool
+from app.observability import current_collector, collect_usage, estimate_cost
 
 
 logger = logging.getLogger(__name__)
@@ -73,66 +74,85 @@ MAX_TOOL_ITERATIONS = 5
 
 
 def complete_with_tools(self, prompt: str) -> LLMResponse:
-    started_at = time.perf_counter()
-    input_items = [
-        {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-        {"role": "user", "content": prompt},
-    ]
+    with collect_usage() as usage:
+        if not usage:
+            raise RuntimeError("No usage collector available")
 
-    tool_calls_made = 0
-    called: list[str] = []
+        started_at = time.perf_counter()
+        input_items = [
+            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
 
-    for iteration in range(MAX_TOOL_ITERATIONS):
-        response = self.client.responses.parse(
-            model=self.settings.openai_model,
-            input=input_items,
-            tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
-            text_format=AssistantResponse,
-        )
+        tool_calls_made = 0
+        called: list[str] = []
 
-        function_calls = [
-            item for item in response.output if item.type == "function_call"]
-
-        if not function_calls:  # no more tool calls. model is done → final answer
-            parsed = response.output_parsed
-            if parsed is None:
-                raise LLMResponseParsingError(
-                    "No parsed AssistantResponse and no tool call.")
-
-            latency_ms = int((time.perf_counter() - started_at) * 1000)
-            logger.info("agent_completed tool_calls=%s tool_used=%s latency_ms=%s",
-                        tool_calls_made, called, latency_ms)
-            return LLMResponse(
-                parsed=parsed,
+        for iteration in range(MAX_TOOL_ITERATIONS):
+            response = self.client.responses.parse(
                 model=self.settings.openai_model,
-                latency_ms=latency_ms,
-                tool_names=called,
+                input=input_items,
+                tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
+                text_format=AssistantResponse,
             )
 
-        input_items += response.output
+            function_calls = [
+                item for item in response.output if item.type == "function_call"]
 
-        for call in function_calls:
-            args = json.loads(call.arguments)
-            logger.info(
-                "agent_tool_call iteration=%s tool_name=%s args=%s call_id=%s",
-                iteration + 1,
-                call.name,
-                args,
-                call.call_id
-            )
+            if not function_calls:  # no more tool calls. model is done → final answer
+                parsed = response.output_parsed
+                if parsed is None:
+                    raise LLMResponseParsingError(
+                        "No parsed AssistantResponse and no tool call.")
 
-            called.append(call.name)
-            result = execute_tool(call.name, args)
-            tool_calls_made += 1
+                collector = current_collector()
+                if collector is not None and response.usage:
+                    collector.record(
+                        kind="generation",
+                        model=self.settings.openai_model,
+                        input_tokens=response.usage.input_tokens,
+                        output_tokens=response.usage.output_tokens,
+                    )
 
-            input_items.append({
-                "type": "function_call_output",
-                "call_id": call.call_id,
-                "output": result,
-            })
+                latency_ms = int((time.perf_counter() - started_at) * 1000)
 
-    raise RuntimeError(
-        f"Agent exceeded MAX_TOOL_ITERATIONS={MAX_TOOL_ITERATIONS}")
+                input_tokens = usage.total_input_tokens
+                output_tokens = usage.total_output_tokens
+                cost = estimate_cost(usage)
+
+                logger.info("agent_completed tool_calls=%s tool_used=%s latency_ms=%s input_tokens=%s output_tokens=%s cost=%s",
+                            tool_calls_made, called, latency_ms, input_tokens, output_tokens, cost)
+
+                return LLMResponse(
+                    parsed=parsed,
+                    model=self.settings.openai_model,
+                    latency_ms=latency_ms,
+                    tool_names=called,
+                )
+
+            input_items += response.output
+
+            for call in function_calls:
+                args = json.loads(call.arguments)
+                logger.info(
+                    "agent_tool_call iteration=%s tool_name=%s args=%s call_id=%s",
+                    iteration + 1,
+                    call.name,
+                    args,
+                    call.call_id
+                )
+
+                called.append(call.name)
+                result = execute_tool(call.name, args)
+                tool_calls_made += 1
+
+                input_items.append({
+                    "type": "function_call_output",
+                    "call_id": call.call_id,
+                    "output": result,
+                })
+
+        raise RuntimeError(
+            f"Agent exceeded MAX_TOOL_ITERATIONS={MAX_TOOL_ITERATIONS}")
 
 
 class LLMClient:
@@ -201,6 +221,15 @@ class LLMClient:
             )
             raise LLMResponseParsingError(
                 "Model response could not be parsed into AssistantResponse."
+            )
+
+        collector = current_collector()
+        if collector is not None and response.usage:
+            collector.record(
+                kind="generation",
+                model=self.settings.openai_model,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
             )
 
         logger.info(

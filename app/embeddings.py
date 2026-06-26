@@ -1,6 +1,7 @@
 import logging
 from openai import OpenAI
 from app.config import Settings, get_settings
+from app.observability import current_collector
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,15 @@ class EmbeddingClient:
             model=self.settings.openai_embedding_model,
             input=texts,
         )
+
+        collector = current_collector()
+        if collector is not None and response.usage:
+            collector.record(
+                kind="embedding",
+                model=self.settings.openai_embedding_model,
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=0,
+            )
 
         embeddings = [item.embedding for item in response.data]
 
