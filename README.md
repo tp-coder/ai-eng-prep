@@ -23,6 +23,7 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Runs an agent mode that lets the model choose between document search and calculation tools.
 - Traces tool calls made by the agent.
 - Runs basic agent tool-routing evals from `evals/agent_dataset.json`.
+- Exposes the same document search and calculator capabilities through a small MCP server.
 
 ## Project Structure
 
@@ -49,6 +50,8 @@ evals/
   run_rag.py         # RAG retrieval eval runner
 
 tests/               # Unit tests
+
+mcp_server.py        # FastMCP server exposing project tools
 ```
 
 ## Setup
@@ -139,6 +142,21 @@ Agent mode gives the model access to two tools:
 
 The agent loops until the model stops requesting tool calls or reaches the maximum tool-iteration limit. Each completed response still returns the same structured `AssistantResponse` shape as the non-agent path.
 
+## Run The MCP Server
+
+The project includes a small FastMCP server that exposes the local tools to MCP-compatible clients:
+
+- `search_documents`: searches the indexed local document knowledge base.
+- `calculate`: evaluates simple arithmetic expressions.
+
+Start the server with:
+
+```bash
+uv run python mcp_server.py
+```
+
+The MCP server reuses the same tool implementations as agent mode. For `search_documents`, ingest documents first with `uv run python -m app.ingest` so the local Qdrant collection exists.
+
 ## Run Tests
 
 ```bash
@@ -180,6 +198,7 @@ The current dataset covers calculator-only, document-search-only, no-tool, and c
 - [x] Basic retrieval evals
 - [x] Tool calling and mini-agent behavior
 - [x] Basic agent tool-routing evals
+- [x] Basic MCP server exposing local tools
 - [ ] Observability improvements
 - [ ] Docker support
 - [ ] Project polish

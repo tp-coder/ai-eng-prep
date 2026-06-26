@@ -31,9 +31,14 @@ Eval harness extended from retrieval-only to **agent behavior**.
 - ✅ 4/4 pass · Accuracy 1.0 · Tool precision 1.0 · Tool recall 1.0
 - → "an agent _with an eval suite that proves it picks the right tool_ — measured with precision & recall."
 
-## Phase 4 — MCP server _(the headline)_
+## Phase 4 — MCP server ✅ (2026-06-26) _(the headline)_
 
-Expose the tools via an **MCP server**; consume from an external client (Claude Desktop). → "I built an MCP." Closes the loop with the EIS / Aircall / RHG MCP conversations.
+Exposed the existing tools over **MCP** — reusing the same `search_docs` / `calculate` executors (capability vs. protocol).
+
+- `mcp_server.py` — `FastMCP("ai-engineering-prep")`, `@mcp.tool()` wrapping the existing executors; docstrings carry the Phase-2 syntax lesson into the tool schema
+- ✅ Verified in the **MCP Inspector** (`uv run mcp dev`) — both tools return
+- ✅ Added to **Claude Code** (`claude mcp add`) and **consumed live by a Claude Code agent** (search_documents → grounded notes; calculate → 1024) — the LLM client does the NL→argument extraction the non-LLM Inspector couldn't
+- → "I built an MCP server, and my own Claude Code agent consumes it." Closes the loop with the EIS / Aircall / RHG MCP conversations.
 
 ## Phase 5 — Dual-mode + write-up
 
