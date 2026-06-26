@@ -13,7 +13,6 @@ from app.llm import (
     LLMClient,
     LLMConfigurationError,
     LLMResponseParsingError,
-    complete_with_tools,
 )
 
 
@@ -60,7 +59,7 @@ def evaluate_case(llm: LLMClient, case: AgentEvalCase) -> AgentEvalResult:
     failures: list[str] = []
 
     try:
-        response = complete_with_tools(llm, case.prompt)
+        response = llm.complete_with_tools(case.prompt)
     except (LLMConfigurationError, LLMResponseParsingError):
         raise
     except Exception as error:

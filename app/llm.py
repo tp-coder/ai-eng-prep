@@ -73,85 +73,6 @@ You are an AI engineering assistant with a document search tool (search_docs) an
 MAX_TOOL_ITERATIONS = 5
 
 
-def complete_with_tools(self, prompt: str) -> LLMResponse:
-    with collect_usage() as usage:
-        started_at = time.perf_counter()
-        input_items = [
-            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ]
-
-        tool_calls_made = 0
-        called: list[str] = []
-
-        for iteration in range(MAX_TOOL_ITERATIONS):
-            response = self.client.responses.parse(
-                model=self.settings.openai_model,
-                input=input_items,
-                tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
-                text_format=AssistantResponse,
-            )
-
-            collector = current_collector()
-            if collector is not None and response.usage:
-                collector.record(
-                    kind="generation",
-                    model=self.settings.openai_model,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
-                )
-
-            function_calls = [
-                item for item in response.output if item.type == "function_call"]
-
-            if not function_calls:  # no more tool calls. model is done → final answer
-                parsed = response.output_parsed
-                if parsed is None:
-                    raise LLMResponseParsingError(
-                        "No parsed AssistantResponse and no tool call.")
-
-                latency_ms = int((time.perf_counter() - started_at) * 1000)
-
-                input_tokens = usage.total_input_tokens
-                output_tokens = usage.total_output_tokens
-                cost = estimate_cost(usage)
-
-                logger.info("agent_completed tool_calls=%s tool_used=%s latency_ms=%s input_tokens=%s output_tokens=%s cost=%s",
-                            tool_calls_made, called, latency_ms, input_tokens, output_tokens, cost)
-
-                return LLMResponse(
-                    parsed=parsed,
-                    model=self.settings.openai_model,
-                    latency_ms=latency_ms,
-                    tool_names=called,
-                )
-
-            input_items += response.output
-
-            for call in function_calls:
-                args = json.loads(call.arguments)
-                logger.info(
-                    "agent_tool_call iteration=%s tool_name=%s args=%s call_id=%s",
-                    iteration + 1,
-                    call.name,
-                    args,
-                    call.call_id
-                )
-
-                called.append(call.name)
-                result = execute_tool(call.name, args)
-                tool_calls_made += 1
-
-                input_items.append({
-                    "type": "function_call_output",
-                    "call_id": call.call_id,
-                    "output": result,
-                })
-
-        raise RuntimeError(
-            f"Agent exceeded MAX_TOOL_ITERATIONS={MAX_TOOL_ITERATIONS}")
-
-
 class LLMClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
@@ -243,3 +164,81 @@ class LLMClient:
             model=self.settings.openai_model,
             latency_ms=latency_ms,
         )
+
+    def complete_with_tools(self, prompt: str) -> LLMResponse:
+        with collect_usage() as usage:
+            started_at = time.perf_counter()
+            input_items = [
+                {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ]
+
+            tool_calls_made = 0
+            called: list[str] = []
+
+            for iteration in range(MAX_TOOL_ITERATIONS):
+                response = self.client.responses.parse(
+                    model=self.settings.openai_model,
+                    input=input_items,
+                    tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
+                    text_format=AssistantResponse,
+                )
+
+                collector = current_collector()
+                if collector is not None and response.usage:
+                    collector.record(
+                        kind="generation",
+                        model=self.settings.openai_model,
+                        input_tokens=response.usage.input_tokens,
+                        output_tokens=response.usage.output_tokens,
+                    )
+
+                function_calls = [
+                    item for item in response.output if item.type == "function_call"]
+
+                if not function_calls:  # no more tool calls. model is done → final answer
+                    parsed = response.output_parsed
+                    if parsed is None:
+                        raise LLMResponseParsingError(
+                            "No parsed AssistantResponse and no tool call.")
+
+                    latency_ms = int((time.perf_counter() - started_at) * 1000)
+
+                    input_tokens = usage.total_input_tokens
+                    output_tokens = usage.total_output_tokens
+                    cost = estimate_cost(usage)
+
+                    logger.info("agent_completed tool_calls=%s tool_used=%s latency_ms=%s input_tokens=%s output_tokens=%s cost=%s",
+                                tool_calls_made, called, latency_ms, input_tokens, output_tokens, cost)
+
+                    return LLMResponse(
+                        parsed=parsed,
+                        model=self.settings.openai_model,
+                        latency_ms=latency_ms,
+                        tool_names=called,
+                    )
+
+                input_items += response.output
+
+                for call in function_calls:
+                    args = json.loads(call.arguments)
+                    logger.info(
+                        "agent_tool_call iteration=%s tool_name=%s args=%s call_id=%s",
+                        iteration + 1,
+                        call.name,
+                        args,
+                        call.call_id
+                    )
+
+                    called.append(call.name)
+                    result = execute_tool(call.name, args)
+                    tool_calls_made += 1
+
+                    input_items.append({
+                        "type": "function_call_output",
+                        "call_id": call.call_id,
+                        "output": result,
+                    })
+
+            raise RuntimeError(
+                f"Agent exceeded MAX_TOOL_ITERATIONS={MAX_TOOL_ITERATIONS}")

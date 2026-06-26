@@ -7,7 +7,7 @@ from rich.panel import Panel
 
 from app.embeddings import EmbeddingClient
 from app.config import get_settings
-from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError, complete_with_tools
+from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError
 from app.logging_config import configure_logging
 from app.schemas import AssistantResponse
 from app.index import SearchResult
@@ -144,7 +144,7 @@ def main() -> None:
     try:
         if args.agent:
             llm = LLMClient(settings)
-            response = complete_with_tools(llm, args.prompt)
+            response = llm.complete_with_tools(args.prompt)
         else:
             with collect_usage() as usage:
                 if not args.no_rag and not args.agent:
