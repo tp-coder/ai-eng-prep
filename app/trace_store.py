@@ -6,7 +6,7 @@ import psycopg
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS traces (
     id              BIGSERIAL PRIMARY KEY,
-    created_at      TIMESTAMPZ NOT NULL DEFAULT now(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     mode            TEXT NOT NULL, -- 'rag' | 'agent' -- this is the comparison key
     prompt          TEXT NOT NULL,
     model           TEXT NOT NULL,

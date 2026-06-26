@@ -75,9 +75,6 @@ MAX_TOOL_ITERATIONS = 5
 
 def complete_with_tools(self, prompt: str) -> LLMResponse:
     with collect_usage() as usage:
-        if not usage:
-            raise RuntimeError("No usage collector available")
-
         started_at = time.perf_counter()
         input_items = [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
@@ -95,6 +92,15 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
                 text_format=AssistantResponse,
             )
 
+            collector = current_collector()
+            if collector is not None and response.usage:
+                collector.record(
+                    kind="generation",
+                    model=self.settings.openai_model,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                )
+
             function_calls = [
                 item for item in response.output if item.type == "function_call"]
 
@@ -103,15 +109,6 @@ def complete_with_tools(self, prompt: str) -> LLMResponse:
                 if parsed is None:
                     raise LLMResponseParsingError(
                         "No parsed AssistantResponse and no tool call.")
-
-                collector = current_collector()
-                if collector is not None and response.usage:
-                    collector.record(
-                        kind="generation",
-                        model=self.settings.openai_model,
-                        input_tokens=response.usage.input_tokens,
-                        output_tokens=response.usage.output_tokens,
-                    )
 
                 latency_ms = int((time.perf_counter() - started_at) * 1000)
 

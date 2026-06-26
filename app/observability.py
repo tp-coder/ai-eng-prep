@@ -8,8 +8,7 @@ from typing import Iterator
 class ModelCall:
     """
     This class tracks model calls.
-    It separates kind: generation (regular model or calculator_tool tool call) and embedding (direct RAG call or search_docs tool call).
-
+    It separates  model calls by kind: generation or embedding.
     The input_tokens and output_tokens are the number of tokens used for the model call.
     """
     kind: str
