@@ -22,6 +22,7 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Runs basic retrieval evals from `evals/rag_dataset.json`.
 - Runs an agent mode that lets the model choose between document search and calculation tools.
 - Traces tool calls made by the agent.
+- Tracks token usage and estimated cost for agent runs.
 - Runs basic agent tool-routing evals from `evals/agent_dataset.json`.
 - Exposes the same document search and calculator capabilities through a small MCP server.
 
@@ -36,6 +37,7 @@ app/
   ingest.py          # Builds the local Qdrant collection
   llm.py             # OpenAI LLM client and prompt construction
   main.py            # CLI entrypoint
+  observability.py   # Usage collection and cost estimation helpers
   schemas.py         # Structured response schemas
   tools.py           # Tool definitions and execution
   vector_store.py    # Qdrant-backed vector store
@@ -142,6 +144,25 @@ Agent mode gives the model access to two tools:
 
 The agent loops until the model stops requesting tool calls or reaches the maximum tool-iteration limit. Each completed response still returns the same structured `AssistantResponse` shape as the non-agent path.
 
+## Observability
+
+Agent mode wraps each run in a `UsageCollector` so generation calls and embedding calls made by tools can be tracked together.
+
+The collector records:
+
+- call kind: `generation` or `embedding`
+- model name
+- input tokens
+- output tokens, when available
+
+`estimate_cost` applies the local pricing table in `app/observability.py` and the agent completion log includes token totals and estimated cost:
+
+```text
+agent_completed tool_calls=... tool_used=... latency_ms=... input_tokens=... output_tokens=... cost=...
+```
+
+Embedding usage uses the OpenAI embeddings response `prompt_tokens` field and is captured when embeddings are created inside an active usage collection context, such as an agent `search_docs` tool call.
+
 ## Run The MCP Server
 
 The project includes a small FastMCP server that exposes the local tools to MCP-compatible clients:
@@ -199,6 +220,6 @@ The current dataset covers calculator-only, document-search-only, no-tool, and c
 - [x] Tool calling and mini-agent behavior
 - [x] Basic agent tool-routing evals
 - [x] Basic MCP server exposing local tools
-- [ ] Observability improvements
+- [x] Basic token and cost observability
 - [ ] Docker support
 - [ ] Project polish
