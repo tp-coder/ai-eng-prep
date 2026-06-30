@@ -33,6 +33,7 @@ class TraceStore:
     def save(self, trace: dict) -> None:
         try:
             with psycopg.connect(self.db_url) as conn:
+                logger.info("saving trace to database")
                 conn.execute(
                     """INSERT INTO traces
                     (mode, prompt, model, tools_used, model_calls, input_tokens,

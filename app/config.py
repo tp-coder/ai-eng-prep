@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 4
     retrieval_min_score: float = Field(default=0.25, ge=0.0, le=1.0)
 
+    database_url: str = "postgresql://aiprep:aiprep@localhost:5433/aiprep"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

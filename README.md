@@ -23,6 +23,7 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Runs an agent mode that lets the model choose between document search and calculation tools.
 - Traces tool calls made by the agent.
 - Tracks token usage and estimated cost for agent runs.
+- Persists each CLI run as a trace in Postgres when the database is available.
 - Runs basic agent tool-routing evals from `evals/agent_dataset.json`.
 - Exposes the same document search and calculator capabilities through a small MCP server.
 
@@ -40,6 +41,7 @@ app/
   observability.py   # Usage collection and cost estimation helpers
   schemas.py         # Structured response schemas
   tools.py           # Tool definitions and execution
+  trace_store.py     # Postgres trace persistence
   vector_store.py    # Qdrant-backed vector store
 
 data/docs/           # Source documents for RAG
@@ -53,6 +55,7 @@ evals/
 
 tests/               # Unit tests
 
+docker-compose.yml   # Local Postgres service for trace storage
 mcp_server.py        # FastMCP server exposing project tools
 ```
 
@@ -87,6 +90,25 @@ QDRANT_COLLECTION=documents
 EMBEDDING_DIM=1536
 RETRIEVAL_TOP_K=4
 RETRIEVAL_MIN_SCORE=0.25
+DATABASE_URL=postgresql://aiprep:aiprep@localhost:5433/aiprep
+```
+
+## Start Postgres
+
+The project can persist run traces to a local Postgres database. Start it with Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+This starts a `postgres:17` container on local port `5433` with the default credentials from `.env.example`.
+
+The app uses `DATABASE_URL` to connect. If Postgres is unavailable, the CLI still answers normally and logs a trace-store warning instead of failing the run.
+
+To stop the database:
+
+```bash
+docker compose down
 ```
 
 ## Build The RAG Index
@@ -144,9 +166,9 @@ Agent mode gives the model access to two tools:
 
 The agent loops until the model stops requesting tool calls or reaches the maximum tool-iteration limit. Each completed response still returns the same structured `AssistantResponse` shape as the non-agent path.
 
-## Observability
+## Observability And Traces
 
-Agent mode wraps each run in a `UsageCollector` so generation calls and embedding calls made by tools can be tracked together.
+Each CLI run wraps model and embedding calls in a `UsageCollector` so generation calls and embedding calls can be tracked together.
 
 The collector records:
 
@@ -161,7 +183,25 @@ The collector records:
 agent_completed tool_calls=... tool_used=... latency_ms=... input_tokens=... output_tokens=... cost=...
 ```
 
-Embedding usage uses the OpenAI embeddings response `prompt_tokens` field and is captured when embeddings are created inside an active usage collection context, such as an agent `search_docs` tool call.
+Regular and agent runs also log aggregate request usage:
+
+```text
+request_usage input_tokens=... output_tokens=... cost=... model_calls=...
+```
+
+When Postgres is available, each completed run is saved to the `traces` table with:
+
+- mode: `rag` or `agent`
+- prompt and answer
+- model
+- tools used
+- model call count
+- input and output tokens
+- estimated cost in USD
+- latency
+- trajectory metadata
+
+Embedding usage uses the OpenAI embeddings response `prompt_tokens` field and is captured when embeddings are created inside an active usage collection context.
 
 ## Run The MCP Server
 
@@ -221,5 +261,6 @@ The current dataset covers calculator-only, document-search-only, no-tool, and c
 - [x] Basic agent tool-routing evals
 - [x] Basic MCP server exposing local tools
 - [x] Basic token and cost observability
-- [ ] Docker support
+- [x] Postgres trace storage
+- [x] Local Docker Compose for Postgres
 - [ ] Project polish

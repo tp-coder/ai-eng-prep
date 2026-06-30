@@ -14,6 +14,7 @@ from app.index import SearchResult
 from app.vector_store import QdrantVectorStore
 from app.retrieval import filter_results_by_score, format_retrieved_context
 from app.observability import collect_usage, estimate_cost
+from app.trace_store import TraceStore
 
 
 console = Console()
@@ -140,6 +141,11 @@ def main() -> None:
         return
 
     retrieved_context: str | None = None
+    store_trace = None
+    try:
+        store_trace = TraceStore(settings.database_url)
+    except Exception as error:
+        logger.warning("trace_store_unavailable error=%s", error)
 
     try:
         with collect_usage() as usage:
@@ -229,6 +235,21 @@ def main() -> None:
             else:
                 response = llm.complete(
                     args.prompt, retrieved_context=retrieved_context)
+
+            if store_trace is not None:
+                store_trace.save({
+                    "mode": "agent" if args.agent else "rag",
+                    "prompt": args.prompt,
+                    "model": response.model,
+                    "tools_used": response.tool_names,
+                    "model_calls": len(usage.calls),
+                    "input_tokens": usage.total_input_tokens,
+                    "output_tokens": usage.total_output_tokens,
+                    "cost_usd": estimate_cost(usage),
+                    "latency_ms": response.latency_ms,
+                    "answer": response.parsed.answer,
+                    "trajectory": response.tool_names or None,
+                })
 
             logger.info(
                 "request_usage input_tokens=%s output_tokens=%s cost=%s model_calls=%s",
