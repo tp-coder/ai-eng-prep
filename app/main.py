@@ -142,91 +142,91 @@ def main() -> None:
     retrieved_context: str | None = None
 
     try:
-        if args.agent:
-            llm = LLMClient(settings)
-            response = llm.complete_with_tools(args.prompt)
-        else:
-            with collect_usage() as usage:
-                if not args.no_rag and not args.agent:
-                    store = QdrantVectorStore(settings)
+        with collect_usage() as usage:
+            if not args.no_rag and not args.agent:
+                store = QdrantVectorStore(settings)
 
-                    if store.count() > 0:
-                        embedding_client = EmbeddingClient(settings)
-                        query_embedding = embedding_client.embed_texts([args.prompt])[
-                            0]
+                if store.count() > 0:
+                    embedding_client = EmbeddingClient(settings)
+                    query_embedding = embedding_client.embed_texts([args.prompt])[
+                        0]
 
-                        raw_results = store.search(
-                            query_embedding=query_embedding,
-                            top_k=settings.retrieval_top_k,
-                        )
+                    raw_results = store.search(
+                        query_embedding=query_embedding,
+                        top_k=settings.retrieval_top_k,
+                    )
 
-                        results = filter_results_by_score(
-                            results=raw_results,
-                            min_score=settings.retrieval_min_score,
-                        )
+                    results = filter_results_by_score(
+                        results=raw_results,
+                        min_score=settings.retrieval_min_score,
+                    )
 
-                        top_score = raw_results[0].score if raw_results else None
+                    top_score = raw_results[0].score if raw_results else None
 
-                        logger.info(
-                            "retrieval_completed raw_result_count=%s filtered_result_count=%s top_score=%s min_score=%s",
-                            len(raw_results),
-                            len(results),
-                            top_score,
+                    logger.info(
+                        "retrieval_completed raw_result_count=%s filtered_result_count=%s top_score=%s min_score=%s",
+                        len(raw_results),
+                        len(results),
+                        top_score,
+                        settings.retrieval_min_score,
+                    )
+
+                    if args.show_context and raw_results:
+                        render_retrieval_debug(raw_results)
+
+                    if results:
+                        retrieved_context = format_retrieved_context(
+                            results)
+                    else:
+                        logger.warning(
+                            "retrieval_context_skipped reason=no_results_above_threshold min_score=%s",
                             settings.retrieval_min_score,
                         )
 
-                        if args.show_context and raw_results:
-                            render_retrieval_debug(raw_results)
-
-                        if results:
-                            retrieved_context = format_retrieved_context(
-                                results)
-                        else:
-                            logger.warning(
-                                "retrieval_context_skipped reason=no_results_above_threshold min_score=%s",
-                                settings.retrieval_min_score,
-                            )
-
-                            if not args.allow_llm_general:
-                                parsed = build_no_context_response(
-                                    min_score=settings.retrieval_min_score,
-                                    top_score=top_score,
-                                )
-
-                                render_assistant_response(
-                                    parsed=parsed,
-                                    model='local-rag-guard',
-                                    latency_ms=0,
-                                )
-
-                                return
-
-                    else:
-                        logger.warning(
-                            "retrieval_skipped reason=qdrant_collection_empty collection=%s", settings.qdrant_collection)
-
                         if not args.allow_llm_general:
-                            parsed = AssistantResponse(
-                                answer="I could not answer your question because the local Qdrant collection is empty.",
-                                confidence="high",
-                                missing_context=[
-                                    f"No vectors found in Qdrant collection '{settings.qdrant_collection}'",
-                                ],
-                                next_actions=[
-                                    "Add documents to data/docs.",
-                                    "Run uv run python -m app.ingest.",
-                                    "Use --allow-llm-general to deliberately allow an LLM non-grounded answer."
-                                ],
-                                source_references=[],
+                            parsed = build_no_context_response(
+                                min_score=settings.retrieval_min_score,
+                                top_score=top_score,
                             )
+
                             render_assistant_response(
                                 parsed=parsed,
-                                model="local-rag-guard",
+                                model='local-rag-guard',
                                 latency_ms=0,
                             )
+
                             return
 
-                llm = LLMClient(settings)
+                else:
+                    logger.warning(
+                        "retrieval_skipped reason=qdrant_collection_empty collection=%s", settings.qdrant_collection)
+
+                    if not args.allow_llm_general:
+                        parsed = AssistantResponse(
+                            answer="I could not answer your question because the local Qdrant collection is empty.",
+                            confidence="high",
+                            missing_context=[
+                                f"No vectors found in Qdrant collection '{settings.qdrant_collection}'",
+                            ],
+                            next_actions=[
+                                "Add documents to data/docs.",
+                                "Run uv run python -m app.ingest.",
+                                "Use --allow-llm-general to deliberately allow an LLM non-grounded answer."
+                            ],
+                            source_references=[],
+                        )
+                        render_assistant_response(
+                            parsed=parsed,
+                            model="local-rag-guard",
+                            latency_ms=0,
+                        )
+                        return
+
+            llm = LLMClient(settings)
+
+            if args.agent:
+                response = llm.complete_with_tools(args.prompt)
+            else:
                 response = llm.complete(
                     args.prompt, retrieved_context=retrieved_context)
 
