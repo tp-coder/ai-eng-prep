@@ -1,7 +1,7 @@
 from app.config import Settings, get_settings
 from app.embeddings import EmbeddingClient
 from app.index import SearchResult
-from app.vector_store import QdrantVectorStore
+from app.pg_vector_store import PgVectorStore
 
 
 def filter_results_by_score(
@@ -29,7 +29,7 @@ def format_retrieved_context(results: list[SearchResult]) -> str:
 
 def retrieve_context(query: str, settings: Settings | None = None) -> str | None:
     settings = settings or get_settings()
-    store = QdrantVectorStore(settings)
+    store = PgVectorStore(settings)
     if store.count() == 0:
         return None
 

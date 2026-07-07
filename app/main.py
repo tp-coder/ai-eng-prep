@@ -11,10 +11,10 @@ from app.llm import LLMClient, LLMConfigurationError, LLMResponseParsingError
 from app.logging_config import configure_logging
 from app.schemas import AssistantResponse
 from app.index import SearchResult
-from app.vector_store import QdrantVectorStore
 from app.retrieval import filter_results_by_score, format_retrieved_context
 from app.observability import collect_usage, estimate_cost
 from app.trace_store import TraceStore
+from app.pg_vector_store import PgVectorStore
 
 
 console = Console()
@@ -150,7 +150,7 @@ def main() -> None:
     try:
         with collect_usage() as usage:
             if not args.no_rag and not args.agent:
-                store = QdrantVectorStore(settings)
+                store = PgVectorStore(settings)
 
                 if store.count() > 0:
                     embedding_client = EmbeddingClient(settings)
@@ -205,14 +205,14 @@ def main() -> None:
 
                 else:
                     logger.warning(
-                        "retrieval_skipped reason=qdrant_collection_empty collection=%s", settings.qdrant_collection)
+                        "retrieval_skipped reason=pgvector_table_empty table=%s", settings.pgvector_table)
 
                     if not args.allow_llm_general:
                         parsed = AssistantResponse(
-                            answer="I could not answer your question because the local Qdrant collection is empty.",
+                            answer="I could not answer your question because the local pgvector table is empty.",
                             confidence="high",
                             missing_context=[
-                                f"No vectors found in Qdrant collection '{settings.qdrant_collection}'",
+                                f"No vectors found in pgvector table '{settings.pgvector_table}'",
                             ],
                             next_actions=[
                                 "Add documents to data/docs.",

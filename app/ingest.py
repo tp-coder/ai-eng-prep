@@ -6,7 +6,7 @@ from app.config import get_settings
 from app.documents import chunk_documents, load_documents
 from app.embeddings import EmbeddingClient
 from app.logging_config import configure_logging
-from app.vector_store import QdrantVectorStore
+from app.pg_vector_store import PgVectorStore
 
 
 console = Console()
@@ -34,12 +34,12 @@ def main() -> None:
     # Refactored to use Qdrant Vector Store
     embedding_client = EmbeddingClient(settings)
     embeddings = embedding_client.embed_texts([chunk.text for chunk in chunks])
-    store = QdrantVectorStore(settings)
+    store = PgVectorStore(settings)
     store.reset_collection()
     store.upsert(chunks, embeddings)
     console.print(
-        f"[bold green]Indexed {len(chunks)} chunks into Qdrant collection "
-        f"'{settings.qdrant_collection}'[/bold green]"
+        f"[bold green]Indexed {len(chunks)} chunks into pgvector table "
+        f"'{settings.pgvector_table}'[/bold green]"
     )
 
 
