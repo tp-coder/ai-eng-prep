@@ -14,9 +14,8 @@ class Settings(BaseSettings):
     openai_timeout_seconds: int = 30
     openai_max_retries: int = 2
 
-    qdrant_path: str = "data/qdrant"
-    qdrant_collection: str = "documents"
     embedding_dim: int = 1536  # text-embedding-3-small dimension
+    pgvector_table: str = "documents"
 
     docs_path: str = "data/docs"
     chunk_size: int = 900

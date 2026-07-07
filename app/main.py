@@ -81,7 +81,7 @@ def build_no_context_response(
 
     return AssistantResponse(
         answer=(
-            "I could not answer your question from the local Qdrant collection because no retrieved chunks passed the minimum relevance threshold."
+            "I could not answer your question from the local pgvector table because no retrieved chunks passed the minimum relevance threshold."
         ),
         confidence="high",
         missing_context=[

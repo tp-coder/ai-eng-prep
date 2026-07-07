@@ -31,7 +31,7 @@ def main() -> None:
     console.print(f"Loaded {len(documents)} documents")
     console.print(f"Created {len(chunks)} document chunks")
 
-    # Refactored to use Qdrant Vector Store
+    # using PgVectorStore
     embedding_client = EmbeddingClient(settings)
     embeddings = embedding_client.embed_texts([chunk.text for chunk in chunks])
     store = PgVectorStore(settings)
