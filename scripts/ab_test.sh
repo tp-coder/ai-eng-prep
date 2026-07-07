@@ -11,6 +11,8 @@ questions=(
     "Who wrote the play Hamlet?",
 )
 
+cd "$(dirname "$0")/.."
+
 for question in "${questions[@]}"; do
     uv run python -m app.main "$question" --allow-llm-general
     uv run python -m app.main "$question" --agent

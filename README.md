@@ -2,7 +2,7 @@
 
 A hands-on AI engineering prep project for building a production-shaped AI assistant in Python.
 
-The project starts with structured LLM responses, then adds a local retrieval-augmented generation pipeline, retrieval evals, tool-calling, and mini-agent behavior.
+The project starts with structured LLM responses, then adds a local pgvector-backed retrieval-augmented generation pipeline, retrieval evals, tool-calling, and mini-agent behavior.
 
 The long-term goal is to build an AI Technical Discovery Assistant that can turn project notes, architecture decisions, technical documents, and tickets into implementation-ready outputs such as specs, acceptance criteria, risk lists, and test scenarios.
 
@@ -14,8 +14,8 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Loads local Markdown and text documents from `data/docs`.
 - Splits documents into overlapping chunks.
 - Creates embeddings for document chunks.
-- Persists embeddings in a local Qdrant vector store.
-- Retrieves relevant chunks from Qdrant by cosine similarity.
+- Persists embeddings in Postgres with pgvector.
+- Retrieves relevant chunks from pgvector by cosine similarity.
 - Filters weak retrieval matches with `RETRIEVAL_MIN_SCORE`.
 - Answers with retrieved context by default.
 - Refuses grounded answers when no retrieved context passes the threshold.
@@ -24,6 +24,7 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 - Traces tool calls made by the agent.
 - Tracks token usage and estimated cost for agent runs.
 - Persists each CLI run as a trace in Postgres when the database is available.
+- Uses one local Postgres database for both document vectors and run traces.
 - Runs basic agent tool-routing evals from `evals/agent_dataset.json`.
 - Exposes the same document search and calculator capabilities through a small MCP server.
 
@@ -35,17 +36,16 @@ app/
   documents.py       # Document loading and chunking
   embeddings.py      # OpenAI embedding client
   index.py           # Shared retrieval result dataclasses
-  ingest.py          # Builds the local Qdrant collection
+  ingest.py          # Builds the local pgvector table
   llm.py             # OpenAI LLM client and prompt construction
   main.py            # CLI entrypoint
   observability.py   # Usage collection and cost estimation helpers
+  pg_vector_store.py # Postgres + pgvector-backed vector store
   schemas.py         # Structured response schemas
   tools.py           # Tool definitions and execution
   trace_store.py     # Postgres trace persistence
-  vector_store.py    # Qdrant-backed vector store
 
 data/docs/           # Source documents for RAG
-data/qdrant/         # Generated local Qdrant storage
 
 evals/
   agent_dataset.json # Agent tool-routing eval cases
@@ -54,6 +54,9 @@ evals/
   run_rag.py         # RAG retrieval eval runner
 
 tests/               # Unit tests
+
+scripts/
+  ab_test.sh         # Runs RAG and agent modes over the same prompts
 
 docker-compose.yml   # Local Postgres service for trace storage
 mcp_server.py        # FastMCP server exposing project tools
@@ -85,25 +88,24 @@ Optional settings:
 OPENAI_MODEL=gpt-5-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 DOCS_PATH=data/docs
-QDRANT_PATH=data/qdrant
-QDRANT_COLLECTION=documents
 EMBEDDING_DIM=1536
+PGVECTOR_TABLE=documents
 RETRIEVAL_TOP_K=4
 RETRIEVAL_MIN_SCORE=0.25
 DATABASE_URL=postgresql://aiprep:aiprep@localhost:5433/aiprep
 ```
 
-## Start Postgres
+## Start Postgres And pgvector
 
-The project can persist run traces to a local Postgres database. Start it with Docker Compose:
+The project uses Postgres for both pgvector document retrieval and run trace storage. Start it with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
-This starts a `postgres:17` container on local port `5433` with the default credentials from `.env.example`.
+This starts a `pgvector/pgvector:pg17` container on local port `5433` with the default credentials from `.env.example`.
 
-The app uses `DATABASE_URL` to connect. If Postgres is unavailable, the CLI still answers normally and logs a trace-store warning instead of failing the run.
+The app uses `DATABASE_URL` to connect. If Postgres is unavailable, trace persistence is skipped with a warning, but RAG retrieval requires Postgres because document vectors live in pgvector.
 
 To stop the database:
 
@@ -119,7 +121,7 @@ Before asking document-grounded questions, ingest the local docs:
 uv run python -m app.ingest
 ```
 
-This reads files from `data/docs`, chunks them, creates embeddings, recreates the configured Qdrant collection, and upserts the chunks into local Qdrant storage at `data/qdrant`.
+This reads files from `data/docs`, chunks them, creates embeddings, recreates the configured pgvector table, and upserts the chunks into Postgres.
 
 ## Run The App
 
@@ -165,6 +167,14 @@ Agent mode gives the model access to two tools:
 - `calculate`: evaluates simple arithmetic expressions.
 
 The agent loops until the model stops requesting tool calls or reaches the maximum tool-iteration limit. Each completed response still returns the same structured `AssistantResponse` shape as the non-agent path.
+
+Run a small RAG-vs-agent comparison script:
+
+```bash
+bash scripts/ab_test.sh
+```
+
+The script sends the same prompts through regular RAG mode and agent mode so the saved traces can be compared by mode, tool use, latency, token usage, and estimated cost.
 
 ## Observability And Traces
 
@@ -216,7 +226,7 @@ Start the server with:
 uv run python mcp_server.py
 ```
 
-The MCP server reuses the same tool implementations as agent mode. For `search_documents`, ingest documents first with `uv run python -m app.ingest` so the local Qdrant collection exists.
+The MCP server reuses the same tool implementations as agent mode. For `search_documents`, start Postgres and ingest documents first with `uv run python -m app.ingest` so the pgvector table exists.
 
 ## Run Tests
 
@@ -236,7 +246,7 @@ uv run ruff check .
 uv run python -m evals.run_rag
 ```
 
-The eval runner embeds each eval question, searches the local Qdrant collection, applies the retrieval threshold, and checks whether each case found or rejected context as expected.
+The eval runner embeds each eval question, searches the pgvector table, applies the retrieval threshold, and checks whether each case found or rejected context as expected.
 
 The eval dataset currently includes positive cases for project overview, structured outputs, and RAG steps, plus negative cases for unrelated restaurant and weather questions.
 
@@ -262,5 +272,7 @@ The current dataset covers calculator-only, document-search-only, no-tool, and c
 - [x] Basic MCP server exposing local tools
 - [x] Basic token and cost observability
 - [x] Postgres trace storage
-- [x] Local Docker Compose for Postgres
+- [x] Local Docker Compose for Postgres and pgvector
+- [x] pgvector-backed document retrieval
+- [x] RAG-vs-agent comparison script
 - [ ] Project polish
