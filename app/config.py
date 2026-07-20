@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     openai_timeout_seconds: int = 30
     openai_max_retries: int = 2
 
+    # Ollama config for --local mode
+    local_base_url: str = "http://localhost:11434/v1"
+    local_model: str = "qwen2.5:3b"
+
     embedding_dim: int = 1536  # text-embedding-3-small dimension
     pgvector_table: str = "documents"
 

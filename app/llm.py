@@ -74,19 +74,31 @@ MAX_TOOL_ITERATIONS = 5
 
 
 class LLMClient:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, local: bool = False) -> None:
         self.settings = settings or get_settings()
+        self.local = local
 
-        if not self.settings.openai_api_key:
-            raise LLMConfigurationError(
-                "OPENAI_API_KEY is missing. Add it to your .env file before trying again."
+        if local:
+            # Ollama's OpenAI-compatible endpoint. API key is required by the SDK
+            # but ignored by Ollama - any non-empty string is valid.
+            self.client = OpenAI(
+                base_url=self.settings.local_base_url,
+                api_key="ollama",
+                timeout=self.settings.openai_timeout_seconds,
+                max_retries=self.settings.openai_max_retries,
             )
-
-        self.client = OpenAI(
-            api_key=self.settings.openai_api_key,
-            timeout=self.settings.openai_timeout_seconds,
-            max_retries=self.settings.openai_max_retries,
-        )
+            self.model = self.settings.local_model
+        else:
+            if not self.settings.openai_api_key:
+                raise LLMConfigurationError(
+                    "OPENAI_API_KEY is missing. Add it to your .env file before trying again."
+                )
+            self.client = OpenAI(
+                api_key=self.settings.openai_api_key,
+                timeout=self.settings.openai_timeout_seconds,
+                max_retries=self.settings.openai_max_retries,
+            )
+            self.model = self.settings.openai_model
 
     @retry(
         retry=retry_if_exception_type(Exception),
@@ -100,14 +112,14 @@ class LLMClient:
 
         logger.info(
             "llm_request_started model=%s prompt_length=%s has_retrieved_context=%s",
-            self.settings.openai_model,
+            self.model,
             len(final_prompt),
             retrieved_context is not None,
         )
 
         try:
             response = self.client.responses.parse(
-                model=self.settings.openai_model,
+                model=self.model,
                 input=[
                     {
                         "role": "system",
@@ -124,7 +136,7 @@ class LLMClient:
             latency_ms = int((time.perf_counter() - started_at) * 1000)
             logger.exception(
                 "llm_request_failed model=%s latency_ms=%s",
-                self.settings.openai_model,
+                self.model,
                 latency_ms,
             )
             raise
@@ -134,7 +146,7 @@ class LLMClient:
         if response.output_parsed is None:
             logger.error(
                 "llm_response_parse_failed model=%s latency_ms=%s",
-                self.settings.openai_model,
+                self.model,
                 latency_ms,
             )
             raise LLMResponseParsingError(
@@ -145,14 +157,14 @@ class LLMClient:
         if collector is not None and response.usage:
             collector.record(
                 kind="generation",
-                model=self.settings.openai_model,
+                model=self.model,
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens,
             )
 
         logger.info(
             "llm_request_completed model=%s latency_ms=%s confidence=%s missing_context_count=%s next_actions_count=%s",
-            self.settings.openai_model,
+            self.model,
             latency_ms,
             response.output_parsed.confidence,
             len(response.output_parsed.missing_context),
@@ -161,7 +173,7 @@ class LLMClient:
 
         return LLMResponse(
             parsed=response.output_parsed,
-            model=self.settings.openai_model,
+            model=self.model,
             latency_ms=latency_ms,
         )
 
@@ -177,7 +189,7 @@ class LLMClient:
 
         for iteration in range(MAX_TOOL_ITERATIONS):
             response = self.client.responses.parse(
-                model=self.settings.openai_model,
+                model=self.model,
                 input=input_items,
                 tools=[SEARCH_DOCS_TOOL, CALCULATOR_TOOL],
                 text_format=AssistantResponse,
@@ -187,7 +199,7 @@ class LLMClient:
             if collector is not None and response.usage:
                 collector.record(
                     kind="generation",
-                    model=self.settings.openai_model,
+                    model=self.model,
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens,
                 )
@@ -213,7 +225,7 @@ class LLMClient:
 
                 return LLMResponse(
                     parsed=parsed,
-                    model=self.settings.openai_model,
+                    model=self.model,
                     latency_ms=latency_ms,
                     tool_names=called,
                 )
