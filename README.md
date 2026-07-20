@@ -10,6 +10,7 @@ The long-term goal is to build an AI Technical Discovery Assistant that can turn
 
 - Loads configuration from `.env` with Pydantic settings.
 - Calls OpenAI models through a small LLM client.
+- Can call a local Ollama model through its OpenAI-compatible chat endpoint for non-agent completions.
 - Parses model output into a typed `AssistantResponse` schema.
 - Loads local Markdown and text documents from `data/docs`.
 - Splits documents into overlapping chunks.
@@ -87,6 +88,8 @@ Optional settings:
 ```bash
 OPENAI_MODEL=gpt-5-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+LOCAL_BASE_URL=http://localhost:11434/v1
+LOCAL_MODEL=qwen2.5:3b
 DOCS_PATH=data/docs
 EMBEDDING_DIM=1536
 PGVECTOR_TABLE=documents
@@ -152,7 +155,32 @@ uv run python -m app.main "Explain structured outputs" --no-rag
 Allow a general LLM answer when no local context is found:
 
 ```bash
-uv run python -m app.main "What is the best lasagna in Turin?" --allow-llm-general
+uv run python -m app.main "What is the best lasagna in Turin?" --allow-llm
+```
+
+Run a local Ollama-backed completion:
+
+```bash
+uv run python -m app.main --local "What is this project about?"
+```
+
+Local mode uses Ollama's OpenAI-compatible endpoint configured by `LOCAL_BASE_URL` and `LOCAL_MODEL`. By default, that is `http://localhost:11434/v1` with `qwen2.5:3b`.
+
+Start Ollama and make sure the model is available before using `--local`:
+
+```bash
+ollama serve
+ollama pull qwen2.5:3b
+```
+
+When using `--local` with RAG enabled, embeddings still come from OpenAI, so `OPENAI_API_KEY` is still required unless you bypass retrieval with `--no-rag`.
+
+Local mode currently supports the regular `complete()` path only. Agent mode uses `complete_with_tools()`, which still depends on OpenAI's Responses API tool-calling flow and is not wired for Ollama yet, so do not combine `--local` and `--agent` for now.
+
+Bypass retrieval and call only the local model:
+
+```bash
+uv run python -m app.main --local --no-rag "Explain structured outputs"
 ```
 
 Run the tool-calling agent:
@@ -275,4 +303,6 @@ The current dataset covers calculator-only, document-search-only, no-tool, and c
 - [x] Local Docker Compose for Postgres and pgvector
 - [x] pgvector-backed document retrieval
 - [x] RAG-vs-agent comparison script
+- [x] Local Ollama completions for the regular `complete()` path
+- [ ] Local Ollama support for `complete_with_tools()` agent mode
 - [ ] Project polish
