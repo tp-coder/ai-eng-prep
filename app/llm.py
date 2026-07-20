@@ -28,6 +28,15 @@ class LLMResponse:
     model: str
     latency_ms: int
     tool_names: list[str] = field(default_factory=list)
+    usage_in: int = 0
+    usage_out: int = 0
+
+
+@dataclass(frozen=True)
+class _RawCompletion:
+    parsed: AssistantResponse | None
+    usage_in: int
+    usage_out: int
 
 
 SYSTEM_PROMPT = """
@@ -84,7 +93,7 @@ class LLMClient:
             self.client = OpenAI(
                 base_url=self.settings.local_base_url,
                 api_key="ollama",
-                timeout=self.settings.openai_timeout_seconds,
+                timeout=self.settings.local_timeout_seconds,
                 max_retries=self.settings.openai_max_retries,
             )
             self.model = self.settings.local_model
@@ -99,6 +108,30 @@ class LLMClient:
                 max_retries=self.settings.openai_max_retries,
             )
             self.model = self.settings.openai_model
+
+    def _structure_call(self, conversation: list) -> _RawCompletion:
+        if self.local:
+            response = self.client.chat.completions.parse(
+                model=self.model,
+                messages=conversation,
+                response_format=AssistantResponse,
+            )
+            msg = response.choices[0].message
+            return _RawCompletion(
+                parsed=msg.parsed,
+                usage_in=response.usage.prompt_tokens if response.usage else 0,
+                usage_out=response.usage.completion_tokens if response.usage else 0,
+            )
+        response = self.client.responses.parse(
+            model=self.model,
+            input=conversation,
+            text_format=AssistantResponse,
+        )
+        return _RawCompletion(
+            parsed=response.output_parsed,
+            usage_in=response.usage.input_tokens,
+            usage_out=response.usage.output_tokens,
+        )
 
     @retry(
         retry=retry_if_exception_type(Exception),
@@ -118,20 +151,13 @@ class LLMClient:
         )
 
         try:
-            response = self.client.responses.parse(
-                model=self.model,
-                input=[
-                    {
-                        "role": "system",
-                        "content": SYSTEM_PROMPT,
-                    },
-                    {
-                        "role": "user",
-                        "content": final_prompt,
-                    }
-                ],
-                text_format=AssistantResponse,
-            )
+            raw = self._structure_call([
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": final_prompt},
+            ])
+            parsed = raw.parsed
+            usage_in = raw.usage_in
+            usage_out = raw.usage_out
         except Exception:
             latency_ms = int((time.perf_counter() - started_at) * 1000)
             logger.exception(
@@ -143,7 +169,7 @@ class LLMClient:
 
         latency_ms = int((time.perf_counter() - started_at) * 1000)
 
-        if response.output_parsed is None:
+        if raw.parsed is None:
             logger.error(
                 "llm_response_parse_failed model=%s latency_ms=%s",
                 self.model,
@@ -154,27 +180,29 @@ class LLMClient:
             )
 
         collector = current_collector()
-        if collector is not None and response.usage:
+        if collector is not None:
             collector.record(
                 kind="generation",
                 model=self.model,
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
+                input_tokens=usage_in,
+                output_tokens=usage_out,
             )
 
         logger.info(
             "llm_request_completed model=%s latency_ms=%s confidence=%s missing_context_count=%s next_actions_count=%s",
             self.model,
             latency_ms,
-            response.output_parsed.confidence,
-            len(response.output_parsed.missing_context),
-            len(response.output_parsed.next_actions),
+            parsed.confidence,
+            len(parsed.missing_context),
+            len(parsed.next_actions),
         )
 
         return LLMResponse(
-            parsed=response.output_parsed,
+            parsed=parsed,
             model=self.model,
             latency_ms=latency_ms,
+            usage_in=usage_in,
+            usage_out=usage_out,
         )
 
     def complete_with_tools(self, prompt: str) -> LLMResponse:
@@ -228,6 +256,8 @@ class LLMClient:
                     model=self.model,
                     latency_ms=latency_ms,
                     tool_names=called,
+                    usage_in=0,
+                    usage_out=0,
                 )
 
             input_items += response.output

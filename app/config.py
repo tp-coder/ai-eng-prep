@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # Ollama config for --local mode
     local_base_url: str = "http://localhost:11434/v1"
     local_model: str = "qwen2.5:3b"
+    local_timeout_seconds: int = 120
 
     embedding_dim: int = 1536  # text-embedding-3-small dimension
     pgvector_table: str = "documents"

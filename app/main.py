@@ -30,25 +30,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--allow-llm-general",
         action="store_true",
-        help="Allow the LLM to generate content that is not in the retrieved context"
+        help="Allow the LLM to generate content that is not in the retrieved context",
     )
 
     parser.add_argument(
         "--no-rag",
         action="store_true",
-        help="Skip retrieval-augmented generation (RAG) and call the LLM without local document context"
+        help="Skip retrieval-augmented generation (RAG) and call the LLM without local document context",
     )
 
     parser.add_argument(
         "--show-context",
         action="store_true",
-        help="Print retrieved chunks before calling the LLM"
+        help="Print retrieved chunks before calling the LLM",
     )
 
     parser.add_argument(
         "--agent",
         action="store_true",
-        help="Use agentic RAG mode with tool-calling"
+        help="Use agentic RAG mode with tool-calling",
+    )
+
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Use local Ollama model instead of OpenAI",
     )
 
     return parser.parse_args()
@@ -228,7 +234,7 @@ def main() -> None:
                         )
                         return
 
-            llm = LLMClient(settings)
+            llm = LLMClient(settings, local=args.local)
 
             if args.agent:
                 response = llm.complete_with_tools(args.prompt)
